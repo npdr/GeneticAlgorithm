@@ -16,8 +16,8 @@ int objX = 4, objY = 4;
 int mapSize = 5;
 
 // Configuracoes do algoritmo genetico
-int generations = 1000;
-int populationSize = 3;
+int generations = 1;
+int populationSize = 2;
 vector<pos>* population = new vector<pos>[populationSize];
 int bestFitIndex = 0;
 int bestFitPopRatio = ceil(1 * populationSize);
@@ -48,12 +48,16 @@ int main() {
 
     // Construindo o caminho aleatorio de cada formiga
     bestFitIndex = initialPopulation(population);
+    cout << "Initial population: " << findBestFitCost() << endl;
+    printPopulation();
 
     // Algoritmo genetico
+    cout << "After population: " << findBestFitCost() << endl;
     while (generations > 0) {
         // crossover
         crossover(population, bestFitIndex, bestFitPopRatio);
         cout << "Geracao " << generations << ": " << findBestFitCost() << endl;
+        printPopulation();
         // mutacao
 
         // nova geracao
@@ -78,10 +82,9 @@ void printPopulation() {
 
 // Funcao para teste: printa o custo do melhor individuo
 int findBestFitCost() {
-    int cost = 0;
+    int cost = 999999;
     for (int i = 0; i < populationSize; i++) {
-        if(population[i].size() > cost)
-            cost = population[i].size();
+        if (population[i].size() < cost) cost = population[i].size();
     }
     return cost;
 }
@@ -159,7 +162,8 @@ int initialPopulation(vector<pos>* population) {
 
 // Compara se duas posicoes no mapa sao iguais
 int compareTwoPos(pos pos1, pos pos2) {
-    if (pos1.x == pos2.x && pos1.y == pos2.y) return 1;
+    // printf("(%d,%d) == (%d,%d)?\n", pos1.x, pos1.y, pos2.x, pos2.y);
+    if ((pos1.x == pos2.x) && (pos1.y == pos2.y)) return 1;
     return 0;
 }
 
@@ -168,52 +172,85 @@ vector<int> intersection(vector<pos> bestFit, vector<pos> random) {
     vector<int> inCommon;
 
     for (int i = 0; i < bestFit.size(); i++) {
-        for (int j = 0; j < random.size(); j++) {
-            if (compareTwoPos(bestFit.at(i), random.at(j))) {
-                inCommon.push_back(i);
-                break;
-            }
-        }
+        if (compareTwoPos(bestFit[i], random[i])) inCommon.push_back(i);
     }
 
+    // caso nao tenha adicionado o objetivo
+    if (inCommon.back() != bestFit.size() - 1)
+        inCommon.push_back(bestFit.size() - 1);
+
+    /* for(int i = 0; i < inCommon.size(); i++)
+        cout << inCommon[i] << " ";
+    cout << endl; */
     return inCommon;
 }
 
-// Faz o cruzamento do individuo "index" com algum aleatorio da populacao
+// Faz o cruzamento do individuo "bestFit" com algum aleatorio da populacao
 // e cria "popRatio" novos filhos com esse cruzamento
-void crossover(vector<pos>* population, int index, int popRatio) {
+void crossover(vector<pos>* population, int bestFit, int popRatio) {
     // Pega um individuo qualquer que nao seja o melhor
     // e cruza os dois para gerar um novo individuo
     uniform_int_distribution<int> randomNumber(0, populationSize - 1);
-    int randomChoosen = index;
-    while (randomChoosen == index) randomChoosen = randomNumber(gen);
+    int randomChoosen = bestFit;
+    while (randomChoosen == bestFit) randomChoosen = randomNumber(gen);
 
     vector<int> intersec =
-        intersection(population[index], population[randomChoosen]);
+        intersection(population[bestFit], population[randomChoosen]);
 
     // Resultado do crossover
-    // Inicialmente, o 0 tem o mesmo valor do melhor
+    // Inicialmente, as criancas tem o mesmo
+    // caminho percorrido do melhor
     vector<pos> children[popRatio];
-    for (int i = 0; i < popRatio; i++) {
-        for (int j = 0; j < population[index].size(); j++)
-            children[i].push_back(population[index].at(j));
-    }
 
-    // Gera um conjunto de "populationSize/2" tamanho
+    // Gera um conjunto de "popRatio" tamanho
     // de novos filhos dos dois individuos escolhidos
-    int auxCG = 0;
-    for (int it = 0; it < popRatio; it++) {
-        for (int i = 0; i < intersec.size(); i++) {
+    for (int iChild = 0; iChild < popRatio; iChild++) {
+        int auxCG = 0;
+        for (int iIntersec = 0; iIntersec < intersec.size()-1; iIntersec++) {
+            // Roda um numero aleatorio para saber com qual
+            // faixa do caminho (do pai ou da mae) o filho vai ficar
             uniform_int_distribution<int> randomNumber01(0, 1);
             int changeGene = randomNumber01(gen);
+
             if (changeGene) {
-                for (int j = auxCG; j < intersec[auxCG]; j++) {
-                    children[it].push_back(population[randomChoosen].at(j));
+                // Usa o gene do random
+                while(1) {
+                    if (population[randomChoosen].at(auxCG).x == objX &&
+                        population[randomChoosen].at(auxCG).y == objY) {
+                        children[iChild].push_back(population[randomChoosen].at(auxCG));       
+                        break;
+                    }
+
+                    if (auxCG == intersec[iIntersec+1]) {
+                        if(auxCG == intersec.back());
+                        else break;
+                    }
+
+                    children[iChild].push_back(population[randomChoosen].at(auxCG));
+                    auxCG++;
+                }
+            } else {
+                // Usa o gene do melhor
+                while(1) {
+                    if (population[bestFit].at(auxCG).x == objX &&
+                        population[bestFit].at(auxCG).y == objY) {
+                        children[iChild].push_back(population[bestFit].at(auxCG));
+                        break;
+                    }
+
+                    if (auxCG == intersec[iIntersec+1]) break;
+
+                    children[iChild].push_back(population[bestFit].at(auxCG));
+                    auxCG++;
                 }
             }
-            auxCG = intersec[i];
         }
+        // adiciona a ultima posicao (o objetivo)
+        // na proxima geracao
+        //children[iChild].push_back(population[bestFit].back());
     }
+
+    
 
     // Atualiza o vetor de posicoes da populacao anterior
     // ou seja, atualiza a nova geracao de individuos
