@@ -16,23 +16,24 @@ int objX = 4, objY = 4;
 int mapSize = 5;
 
 // Configuracoes do algoritmo genetico
-int generations = 20;
-int populationSize = 2;
+int generations = 100;
+int populationSize = 1000;
 vector<pos>* population = new vector<pos>[populationSize];
-int bestFitIndex = 0;
+int bestFitIndex = 0, secondFitIndex = 0;
 int bestFitPopRatio = ceil(1 * populationSize);
 
 // Definicao das funcoes utilizadas
 void printPopulation();
-int findBestFitCost();
+int findBestFitIndex();
+int findSecondFitIndex();
 void buildMap();
 pos randomPos(pos currPos);
 void defaultPos(vector<pos>* population);
 int initialPopulation(vector<pos>* population);
 int compareTwoPos(pos pos1, pos pos2);
 vector<int> intersection(vector<pos> bestFit, vector<pos> random);
-void crossover(vector<pos>* population, int index, int popRatio);
-int killAllBad(vector<pos>* population, int index);
+void crossover(vector<pos>* population, int best, int second, int popRatio);
+void fitness(vector<pos>* population, int index);
 void mutate(vector<pos>* population);
 vector<pos> mutateUtil(vector<pos>* population, vector<pos> currPath);
 // ----- ----- ----- ----- MAIN ----- ----- ----- ----- ----- //
@@ -50,28 +51,32 @@ int main() {
 
     // Construindo o caminho aleatorio de cada formiga
     bestFitIndex = initialPopulation(population);
-    //cout << "Initial population: " << findBestFitCost() << endl;
-    //printPopulation();
-
+    cout << "Iniciando população... " << endl;
+    
     // Algoritmo genetico
-    //cout << "After population: " << findBestFitCost() << endl;
     while (generations > 0) {
+        cout << "INICIAL... " << endl;
+        //printPopulation();
+
+        // fitness function
+        cout << "FITNESS... " << endl;
+        fitness(population, bestFitIndex);
+        bestFitIndex = findBestFitIndex();
+        secondFitIndex = findSecondFitIndex();
+        cout << "best, second: " << population[bestFitIndex].size() << ", " << population[secondFitIndex].size() << endl;
+        //printPopulation();
+
         // crossover
-        crossover(population, bestFitIndex, bestFitPopRatio);
+        cout << "CROSSOVER... " << endl;
+        crossover(population, bestFitIndex, secondFitIndex, bestFitPopRatio);
         //printPopulation();
         
         // mutacao
+        cout << "MUTACAO... " << endl;
         mutate(population);
-
-        // exterminio dos piores
-        // e substituicao por novos aleatorios
-        //bestFitIndex = killAllBad(population, bestFitIndex);
-
-        bestFitIndex = findBestFitCost();
-        cout << "Geracao " << generations << ": " << bestFitIndex << endl;
-
         //printPopulation();
-        // nova geracao
+
+        cout << "GERACAO " << generations << "... " << endl << endl << endl;
         generations--;
     }
 
@@ -94,13 +99,26 @@ void printPopulation() {
     }
 }
 
-// Funcao para teste: printa o custo do melhor individuo
-int findBestFitCost() {
-    int cost = 999999;
+// Encontra o custo do melhor individuo
+int findBestFitIndex() {
+    int bestIndex, bestSize = 9999;
     for (int i = 0; i < populationSize; i++) {
-        if (population[i].size() < cost) cost = population[i].size();
+        if(population[i].size() == 1) continue;
+        if (population[i].size() < bestSize) bestIndex = i;
     }
-    return cost;
+    return bestIndex;
+}
+
+// Encontra o custo do segundo melhor individuo
+int findSecondFitIndex() {
+    int secondIndex, secondSize = 9999;
+    int best = findBestFitIndex();
+
+    for (int i = 0; i < populationSize; i++) {
+        if(i == best || population[i].size() == 1) continue;
+        if (population[i].size() < secondSize) secondIndex = i;
+    }
+    return secondIndex;
 }
 
 // Funcao que aloca e constroi o mapa no qual o algoritmo roda
@@ -201,15 +219,9 @@ vector<int> intersection(vector<pos> bestFit, vector<pos> random) {
 
 // Faz o cruzamento do individuo "bestFit" com algum aleatorio da populacao
 // e cria "popRatio" novos filhos com esse cruzamento
-void crossover(vector<pos>* population, int bestFit, int popRatio) {
-    // Pega um individuo qualquer que nao seja o melhor
-    // e cruza os dois para gerar um novo individuo
-    uniform_int_distribution<int> randomNumber(0, populationSize - 1);
-    int randomChoosen = bestFit;
-    while (randomChoosen == bestFit) randomChoosen = randomNumber(gen);
-
+void crossover(vector<pos>* population, int bestIndex, int secondIndex, int popRatio) {
     vector<int> intersec =
-        intersection(population[bestFit], population[randomChoosen]);
+        intersection(population[bestIndex], population[secondIndex]);
 
     // Resultado do crossover
     // Inicialmente, as criancas tem o mesmo
@@ -227,11 +239,11 @@ void crossover(vector<pos>* population, int bestFit, int popRatio) {
             int changeGene = randomNumber01(gen);
 
             if (changeGene) {
-                // Usa o gene do random
+                // Usa o gene do segundo
                 while(1) {
-                    if (population[randomChoosen].at(auxCG).x == objX &&
-                        population[randomChoosen].at(auxCG).y == objY) {
-                        children[iChild].push_back(population[randomChoosen].at(auxCG));       
+                    if (population[secondIndex].at(auxCG).x == objX &&
+                        population[secondIndex].at(auxCG).y == objY) {
+                        children[iChild].push_back(population[secondIndex].at(auxCG));       
                         break;
                     }
 
@@ -240,38 +252,32 @@ void crossover(vector<pos>* population, int bestFit, int popRatio) {
                         else break;
                     }
 
-                    children[iChild].push_back(population[randomChoosen].at(auxCG));
+                    children[iChild].push_back(population[secondIndex].at(auxCG));
                     auxCG++;
                 }
             } else {
                 // Usa o gene do melhor
                 while(1) {
-                    if (population[bestFit].at(auxCG).x == objX &&
-                        population[bestFit].at(auxCG).y == objY) {
-                        children[iChild].push_back(population[bestFit].at(auxCG));
+                    if (population[bestIndex].at(auxCG).x == objX &&
+                        population[bestIndex].at(auxCG).y == objY) {
+                        children[iChild].push_back(population[bestIndex].at(auxCG));
                         break;
                     }
 
                     if (auxCG == intersec[iIntersec+1]) break;
 
-                    children[iChild].push_back(population[bestFit].at(auxCG));
+                    children[iChild].push_back(population[bestIndex].at(auxCG));
                     auxCG++;
                 }
             }
         }
-        // adiciona a ultima posicao (o objetivo)
-        // na proxima geracao
-        //children[iChild].push_back(population[bestFit].back());
     }
-
-    
 
     // Atualiza o vetor de posicoes da populacao anterior
     // ou seja, atualiza a nova geracao de individuos
     for (int i = 0; i < popRatio; i++) {
         population[i] = children[i];
     }
-    return;
 }
 
 // Faz a mutacao de parte do caminho atual
@@ -279,6 +285,7 @@ void crossover(vector<pos>* population, int bestFit, int popRatio) {
 // modificando parte do gene do individuo
 void mutate(vector<pos>* population) {
     for(int i = 0; i < populationSize; i++) {
+        if(i == findBestFitIndex()) continue;
         //cout << "i: " << i << " size: " << population[i].size() << endl;
         population[i] = mutateUtil(population, population[i]);        
     }
@@ -289,9 +296,6 @@ void mutate(vector<pos>* population) {
 // individuo escolhido
 vector<pos> mutateUtil(vector<pos>* population, vector<pos> currPath) {
     vector<pos> newPath;
-    pos iniPos;
-    iniPos.x = 0, iniPos.y = 0;
-    newPath.push_back(iniPos);
 
     // escolhe até onde vai mutar
     // no caminho do individuo
@@ -323,23 +327,27 @@ vector<pos> mutateUtil(vector<pos>* population, vector<pos> currPath) {
 // extermina todos os individuos dado um
 // threshold cujo valor depende do tamanho
 // do melhor individuo ate agora
-int killAllBad(vector<pos>* population, int index) {
-    int sizeThreshold = ceil(population[index].size() * 1.5);
+void fitness(vector<pos>* population, int index) {
+    pos iniPos;
+    iniPos.x = 0, iniPos.y = 0;
+
+    int sizeThreshold = population[index].size() * 3;
     // exterminio
     for(int i = 0; i < populationSize; i++) {
-        cout << i << endl;
-        if(population[i].size() > sizeThreshold)
-            population[i].erase((*population).begin()+i);
-    }
-
-    // substituicao
-    for (int i = (*population).size(); i < populationSize; i++) {
-        int j = 0;
-        while (population[i].at(j).x != objX || population[i].at(j).y != objY) {
-            population[i].push_back(randomPos(population[i].at(j)));
-            j++;
+        if(population[i].size() > sizeThreshold) {
+            population[i].clear();
+            population[i].push_back(iniPos);
         }
     }
 
-    return findBestFitCost();;
+    // substituicao
+    for (int i = 0; i < populationSize; i++) {
+        int j = 0;
+        if(population[i].empty()) {
+            while (population[i].at(j).x != objX || population[i].at(j).y != objY) {
+                population[i].push_back(randomPos(population[i].at(j)));
+                j++;
+            }
+        }
+    }
 }
