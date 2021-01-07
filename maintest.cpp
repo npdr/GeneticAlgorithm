@@ -16,8 +16,8 @@ int objX = 4, objY = 4;
 int mapSize = 5;
 
 // Configuracoes do algoritmo genetico
-int generations = 100;
-int populationSize = 1000;
+int generations = 10;
+int populationSize = 100;
 vector<pos>* population = new vector<pos>[populationSize];
 int bestFitIndex = 0, secondFitIndex = 0;
 int bestFitPopRatio = ceil(1 * populationSize);
@@ -103,8 +103,11 @@ void printPopulation() {
 int findBestFitIndex() {
     int bestIndex, bestSize = 9999;
     for (int i = 0; i < populationSize; i++) {
-        if(population[i].size() == 1) continue;
-        if (population[i].size() < bestSize) bestIndex = i;
+        if(population[i].size() == 1) continue; // individuo deletado pelo fitness
+        if (population[i].size() < bestSize) {
+            bestIndex = i;
+            bestSize = population[bestIndex].size();
+        }
     }
     return bestIndex;
 }
@@ -115,8 +118,11 @@ int findSecondFitIndex() {
     int best = findBestFitIndex();
 
     for (int i = 0; i < populationSize; i++) {
-        if(i == best || population[i].size() == 1) continue;
-        if (population[i].size() < secondSize) secondIndex = i;
+        if(i == best || population[i].size() == 1) continue; // individuo deletado pelo fitness
+        if (population[i].size() < secondSize) {
+            secondIndex = i;
+            secondSize = population[secondIndex].size();
+        }
     }
     return secondIndex;
 }
@@ -295,11 +301,17 @@ void mutate(vector<pos>* population) {
 // a mutação do caminho de um
 // individuo escolhido
 vector<pos> mutateUtil(vector<pos>* population, vector<pos> currPath) {
+    pos defaultPos;
+    defaultPos.x = defaultPos.y = 0;
     vector<pos> newPath;
+    newPath.push_back(defaultPos);
 
     // escolhe até onde vai mutar
     // no caminho do individuo
-    uniform_int_distribution<int> randomGene(1, currPath.size()-1);
+    int maxRange = floor(currPath.size()*0.1);
+    if(maxRange == 0) return currPath; // caso encontre um individuo exterminado pelo fitness
+
+    uniform_int_distribution<int> randomGene(1, maxRange);
     int mutationSize = randomGene(gen);
 
     // mutacao
